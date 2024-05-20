@@ -23,6 +23,7 @@ import styles from '../screens/Styles/Style';
 import AdminDrawer from '../components/AdminDrawer';
 import auth from '@react-native-firebase/auth';
 import notify from '../config/global';
+import Order from '../screens/Frontend/Order';
 const Stack = createNativeStackNavigator();
 
 const Drawer = createDrawerNavigator();
@@ -130,6 +131,7 @@ function MyDrawer() {
       />
       <Drawer.Screen name="Profile" component={Profile} />
       <Drawer.Screen name="Notification" component={Notification} />
+      <Drawer.Screen name="Orders" component={Order} />
     </Drawer.Navigator>
   );
 }

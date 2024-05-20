@@ -21,7 +21,10 @@ import {useFetchDoc} from '../../contaxts/FetchDoc';
 import {Calendar} from 'react-native-calendars';
 import {useAuthContaxt} from '../../contaxts/AuthContaxt';
 import notify from '../../config/global';
+import {AirbnbRating} from 'react-native-ratings';
+
 const initialState = {detailFromUser: ''};
+
 export default function ServiceDetail({navigation}) {
   const route = useRoute();
   const {id} = route.params;
@@ -30,31 +33,38 @@ export default function ServiceDetail({navigation}) {
   const {workers} = useFetchDoc();
   const [state, setState] = useState(initialState);
   const [isloading, setisloading] = useState(false);
-  const [value, setValue] = React.useState('');
+  const [value, setValue] = useState('');
   const [workerDetail, setWorkerDetail] = useState({});
   const [selected, setSelected] = useState({});
   const [ShowModal, setShowModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('COD'); // Step 1: Add paymentMethod state
-  const [showBankDetails, setShowBankDetails] = useState(false); // Step 2: Add showBankDetails state
+  const [paymentMethod, setPaymentMethod] = useState('COD');
+  const [showBankDetails, setShowBankDetails] = useState(false);
+  const [rating, setRating] = useState(0);
 
   const handlePaymentMethodChange = value => {
     setPaymentMethod(value);
     if (value === 'Bank') {
-      // Show bank details if bank is selected
       setShowBankDetails(true);
     } else {
       setShowBankDetails(false);
     }
   };
+
   const handleChange = (name, value) => {
     setState(s => ({...s, [name]: value}));
   };
+
   useEffect(() => {
     let tempworkers = workers;
     let tempworker = tempworkers.filter(item => {
       return item.uid == id;
     });
 
+    if (tempworker.length > 0) {
+      let worker = tempworker[0];
+      setWorkerDetail(worker);
+      fetchAverageRating(worker.uid);
+    }
     let uid = tempworker[0].uid;
     let bgColor = tempworker[0].bgColor;
     let category = tempworker[0].category;
@@ -81,9 +91,32 @@ export default function ServiceDetail({navigation}) {
     };
     setWorkerDetail(data);
   }, []);
+
+  const fetchAverageRating = async workerId => {
+    try {
+      const reviewsSnapshot = await firestore()
+        .collection('reviews')
+        .where('workerId', '==', workerId)
+        .get();
+
+      let totalRating = 0;
+      let reviewCount = reviewsSnapshot.size;
+
+      reviewsSnapshot.forEach(doc => {
+        totalRating += doc.data().rating;
+      });
+
+      const averageRating = reviewCount > 0 ? totalRating / reviewCount : 0;
+      setWorkerDetail(prev => ({...prev, averageRating}));
+    } catch (error) {
+      console.error('Error fetching average rating:', error);
+    }
+  };
+
   const handleDate = () => {
     setShowModal(false);
   };
+
   const handleSubmit = () => {
     const {
       bgColor,
@@ -120,25 +153,55 @@ export default function ServiceDetail({navigation}) {
       detailFromUser,
       propertyType,
       whatsappNumber,
+      status: 'pending',
+      rating,
     };
     orderData.id = Math.random().toString(36).slice(2);
     setisloading(true);
     createOrder(orderData);
   };
+
   const createOrder = async orderData => {
     try {
       await firestore().collection('orders').doc(orderData.id).set(orderData);
-
-      notify('Success', 'order submit successfully!', 'success');
+      notify('Success', 'Order submitted successfully!', 'success');
       setisloading(false);
       setState(initialState);
       setValue('');
       setSelected({});
     } catch (error) {
-      notify('Error', 'order not submit!', 'error');
+      notify('Error', 'Order not submitted!', 'error');
       setisloading(false);
     }
   };
+
+  const storeReview = async () => {
+    const userId = user.uid;
+    const workerId = workerDetail.uid;
+    try {
+      const existingReview = await firestore()
+        .collection('reviews')
+        .where('workerId', '==', workerId)
+        .where('userId', '==', userId)
+        .get();
+
+      if (!existingReview.empty) {
+        notify('Error', 'You have already rated this worker!', 'error');
+        return;
+      }
+
+      await firestore().collection('reviews').add({
+        workerId,
+        userId,
+        rating,
+      });
+
+      notify('Success', 'Review submitted successfully!', 'success');
+    } catch (error) {
+      notify('Error', 'Review not submitted!', 'error');
+    }
+  };
+
   return (
     <ScrollView>
       <Serviceimg
@@ -149,6 +212,16 @@ export default function ServiceDetail({navigation}) {
       <View style={styles.flexContainer}>
         <View>
           <Text style={[styles.h3, styles.h, {marginVertical: 10}]}>
+            <Text style={[styleclr.primary]}>|</Text> Average Rating
+          </Text>
+          <Text style={{marginHorizontal: 20, textAlign: 'justify'}}>
+            {workerDetail.averageRating
+              ? workerDetail.averageRating.toFixed(1)
+              : 'No ratings yet'}
+          </Text>
+        </View>
+        <View>
+          <Text style={[styles.h3, styles.h, {marginVertical: 10}]}>
             <Text style={[styleclr.primary]}>|</Text> Type of Properties
           </Text>
         </View>
@@ -156,7 +229,7 @@ export default function ServiceDetail({navigation}) {
           <SegmentedButtons
             value={value}
             onValueChange={setValue}
-            buttons={[  
+            buttons={[
               {
                 value: 'home',
                 label: 'Home',
@@ -241,15 +314,13 @@ export default function ServiceDetail({navigation}) {
               <Text>JazzCash</Text>
             </View>
           </View>
-          {showBankDetails && ( // Conditionally render bank details based on showBankDetails state
+          {showBankDetails && (
             <View>
-              {/* Add bank details here */}
               <Text style={[styles.h3, styles.h, {marginVertical: 10}]}>
                 <Text style={[styleclr.primary]}>|</Text> Bank Details
               </Text>
-              <Text>Name:Muhammad Zohaib</Text>
-              <Text>Account Number: +923182483175 </Text>
-              {/* Add more bank details as needed */}
+              <Text>Name: Muhammad Zohaib</Text>
+              <Text>Account Number: +923182483175</Text>
             </View>
           )}
 
@@ -277,7 +348,7 @@ export default function ServiceDetail({navigation}) {
             onChangeText={value => handleChange('detailFromUser', value)}
           />
           <Image
-            source={require('../../assets/images/map.png')} // Adjust the path to your image file
+            source={require('../../assets/images/map.png')}
             style={{
               width: '100%',
               height: 100,
@@ -313,6 +384,23 @@ export default function ServiceDetail({navigation}) {
               </TouchableOpacity>
             </>
           )}
+          <View style={{marginVertical: 20, alignItems: 'center'}}>
+            <Text style={[styles.h3, styles.h, {marginVertical: 10}]}>
+              <Text style={[styleclr.primary]}>|</Text> Rate the Service
+            </Text>
+            <AirbnbRating
+              count={5}
+              reviews={['Terrible', 'Bad', 'Okay', 'Good', 'Amazing']}
+              defaultRating={0}
+              size={30}
+              onFinishRating={setRating}
+            />
+            <TouchableOpacity
+              style={[styles.btnstylish, styles.shadowProp]}
+              onPress={storeReview}>
+              <Text style={styles.textlight}>Add Rating</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
       <Modal visible={ShowModal} animationType="fade">
