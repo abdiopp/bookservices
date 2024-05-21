@@ -215,9 +215,14 @@ export default function ServiceDetail({navigation}) {
             <Text style={[styleclr.primary]}>|</Text> Average Rating
           </Text>
           <Text style={{marginHorizontal: 20, textAlign: 'justify'}}>
-            {workerDetail.averageRating
-              ? workerDetail.averageRating.toFixed(1)
-              : 'No ratings yet'}
+            <AirbnbRating
+              count={5}
+              reviews={['Terrible', 'Bad', 'Okay', 'Good', 'Amazing']}
+              defaultRating={workerDetail?.averageRating?.toFixed(1) || 0}
+              size={20}
+              showRating={false}
+              isDisabled={true}
+            />
           </Text>
         </View>
         <View>
